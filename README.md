@@ -7,6 +7,7 @@ This is a work in progress
 
 1. `dnf install elfutils-libelf-devel`
 2. LLVM
+3. `docker` and `runc`
 
 # Topology
 
