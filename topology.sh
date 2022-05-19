@@ -42,6 +42,9 @@ up() {
 
 down() {
 	set +e
+	sudo runc kill --all pod1 KILL
+	sudo runc kill --all pod2 KILL
+	sudo runc kill --all pod3 KILL
 	sudo runc delete pod1
 	sudo runc delete pod2
 	sudo runc delete pod3
