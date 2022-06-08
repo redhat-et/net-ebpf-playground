@@ -59,8 +59,10 @@ create_pod() {
 	pod="pod$1"
 	if [ ! -f .output/rootfs.tar ]; then
 		mkdir -p .output
-		sudo docker run --name net-ebpf-playground fedora:35 /bin/bash
+		sudo docker build -t net-ebpf-playground .
+		sudo docker run --name net-ebpf-playground net-ebpf-playground:latest /bin/bash
 		sudo docker export net-ebpf-playground > .output/rootfs.tar
+		sudo docker rm net-ebpf-playground
 	fi
 	bundle_dir="./containers/${pod}"
 	mkdir -p "${bundle_dir}/rootfs"
