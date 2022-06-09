@@ -4,39 +4,15 @@ set -e
 up() {
 	ip link add podrouter type dummy
 	ip link set up podrouter
-	ip addr add 192.168.10.1 dev podrouter
+	ip addr add 192.168.10.1/32 dev podrouter
 
-	ip netns add pod1
-	ip link add pod1 type veth peer name pod1-int
-	ip link set pod1-int netns pod1 name eth0
-	ip netns exec pod1 ip addr add 192.168.10.2/32 dev eth0
-	ip netns exec pod1 ip link set up eth0
-	ip netns exec pod1 ip route add 192.168.10.1 dev eth0
-	ip netns exec pod1 ip route add default via 192.168.10.1
-	ip link set up pod1
-	ip route add 192.168.10.2/32 dev pod1
+	create_netns 1 192.168.10.2
 	create_pod 1
 
-	ip netns add pod2
-	ip link add pod2 type veth peer name pod2-int
-	ip link set pod2-int netns pod2 name eth0
-	ip netns exec pod2 ip addr add 192.168.10.2/32 dev eth0
-	ip netns exec pod2 ip link set up eth0
-	ip netns exec pod2 ip route add 192.168.10.1 dev eth0
-	ip netns exec pod2 ip route add default via 192.168.10.1
-	ip link set up pod2
-	ip route add 192.168.10.3/32 dev pod2
+	create_netns 2 192.168.10.3
 	create_pod 2
 
-	ip netns add pod3
-	ip link add pod3 type veth peer name pod3-int
-	ip link set pod3-int netns pod3 name eth0
-	ip netns exec pod3 ip addr add 192.168.10.3/32 dev eth0
-	ip netns exec pod3 ip link set up eth0
-	ip netns exec pod3 ip route add 192.168.10.1 dev eth0
-	ip netns exec pod3 ip route add default via 192.168.10.1
-	ip link set up pod3
-	ip route add 192.168.10.4/32 dev pod3
+	create_netns 3 192.168.10.4
 	create_pod 3
 }
 
@@ -55,24 +31,39 @@ down() {
 	ip link del podrouter
 }
 
+create_netns() {
+	pod="pod$1"
+	ip="$2"
+	ip netns add "$pod"
+	ip link add "$pod" type veth peer name "$pod"-int
+	ip link set "$pod"-int netns "$pod" name eth0
+	ip netns exec "$pod" ip addr add "${ip}"/32 dev eth0
+	ip netns exec "$pod" ip link set up eth0
+	ip netns exec "$pod" ip route add 192.168.10.1 dev eth0
+	ip netns exec "$pod" ip route add default via 192.168.10.1
+	ip link set up "$pod"
+	ip route add "$ip"/32 dev "$pod"
+}
+
 create_pod() {
 	pod="pod$1"
-	if [ ! -f .output/rootfs.tar ]; then
+	if [ ! -f .output/config.json ]; then
 		mkdir -p .output
-		sudo docker build -t net-ebpf-playground .
-		sudo docker run --name net-ebpf-playground net-ebpf-playground:latest /bin/bash
-		sudo docker export net-ebpf-playground > .output/rootfs.tar
-		sudo docker rm net-ebpf-playground
+		pushd output
+		skopeo copy docker://fedora:36 oci:fedora:36
+		umoci unpack --image fedora:36 .output
+		popd
 	fi
 	bundle_dir="./containers/${pod}"
-	mkdir -p "${bundle_dir}/rootfs"
-	tar -xf .output/rootfs.tar -C "${bundle_dir}/rootfs"
-	if [ ! -f .output/config.json ]; then
-		runc spec -b .output
-	fi
-	jq --arg pod "$pod" '.linux.namespaces[1].path = "/var/run/netns/\($pod)" | .process.args[0] = "sleep" | .process.args[1] = "infinity" | .process.terminal = false' .output/config.json > "${bundle_dir}/config.json"
-	sudo runc create -b "${bundle_dir}" "${pod}"
-	sudo runc start "${pod}"
+	mkdir -p "${bundle_dir}"
+	cp -rf .output/* "${bundle_dir}"
+	jq --arg pod "$pod" '.linux.namespaces[1].path = "/var/run/netns/\($pod)" | .process.args[0] = "sleep" | .process.args[1] = "infinity" | .process.terminal = false | .root.readonly = false' .output/config.json > "${bundle_dir}/config.json"
+	sudo runc --systemd-cgroup create -b "${bundle_dir}" "${pod}"
+	sudo runc --systemd-cgroup start "${pod}"
+}
+
+clean() {
+	rm -rf .output
 }
 
 if test "$(id -u)" -ne "0"; then
@@ -86,6 +77,9 @@ case $1 in
 		;;
 	"down")
 		down
+		;;
+	"clean")
+		clean
 		;;
 	*)
 		echo "please provide a command. 'up' or 'down'"
