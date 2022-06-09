@@ -1,18 +1,28 @@
 #!/bin/sh
-set -e
+set -xe
 
 up() {
+	iface="$1"
+	if [ -z "$iface" ]; then
+		echo "external interface name required"
+		exit 1
+	fi
 	ip link add podrouter type dummy
 	ip link set up podrouter
 	ip addr add 192.168.10.1/32 dev podrouter
+	firewall-cmd --direct --add-rule ipv4 nat POSTROUTING 0 -o "$iface" -j MASQUERADE
+	firewall-cmd --permanent --new-zone=playground
+	firewall-cmd --permanent --zone=playground --set-target ACCEPT
+	firewall-cmd --reload
+	firewall-cmd --zone=playground --change-interface podrouter
 
-	create_netns 1 192.168.10.2
+	create_netns 1 "$iface" 192.168.10.2
 	create_pod 1
 
-	create_netns 2 192.168.10.3
+	create_netns 2 "$iface" 192.168.10.3
 	create_pod 2
 
-	create_netns 3 192.168.10.4
+	create_netns 3 "$iface" 192.168.10.4
 	create_pod 3
 }
 
@@ -29,11 +39,14 @@ down() {
 	ip netns del pod2
 	ip netns del pod3
 	ip link del podrouter
+	firewall-cmd --delete-zone=playground --permanent
+	firewall-cmd --reload
 }
 
 create_netns() {
 	pod="pod$1"
-	ip="$2"
+	iface="$2"
+	ip="$3"
 	ip netns add "$pod"
 	ip link add "$pod" type veth peer name "$pod"-int
 	ip link set "$pod"-int netns "$pod" name eth0
@@ -43,6 +56,12 @@ create_netns() {
 	ip netns exec "$pod" ip route add default via 192.168.10.1
 	ip link set up "$pod"
 	ip route add "$ip"/32 dev "$pod"
+	firewall-cmd --zone=playground --change-interface="$pod"
+	# Being in the same zone should be sufficient...
+	# but I don't claim to understand firewalld
+	firewall-cmd --direct --add-rule ipv4 filter FORWARD 0 -i "$pod" -j ACCEPT
+	firewall-cmd --direct --add-rule ipv4 filter FORWARD 1 -i "$iface" -o "$pod" -m state --state RELATED,ESTABLISHED -j ACCEPT
+	firewall-cmd --direct --add-rule ipv4 filter FORWARD 2 -i "$iface" -o "$pod" -j ACCEPT
 }
 
 create_pod() {
@@ -57,7 +76,7 @@ create_pod() {
 	bundle_dir="./containers/${pod}"
 	mkdir -p "${bundle_dir}"
 	cp -rf .output/* "${bundle_dir}"
-	jq --arg pod "$pod" '.linux.namespaces[1].path = "/var/run/netns/\($pod)" | .process.args[0] = "sleep" | .process.args[1] = "infinity" | .process.terminal = false | .root.readonly = false' .output/config.json > "${bundle_dir}/config.json"
+	jq --arg pod "$pod" '.linux.namespaces[1].path = "/var/run/netns/\($pod)" | .process.args[0] = "sleep" | .process.args[1] = "infinity" | .process.terminal = false | .root.readonly = false | .hostname = "($pod)" | .mounts += [{"destination":"/etc/resolv.conf","type":"bind","source":"/etc/resolv.conf","options":["ro","rbind","rprivate","nosuid","noexec","nodev"]}]' .output/config.json > "${bundle_dir}/config.json"
 	sudo runc --systemd-cgroup create -b "${bundle_dir}" "${pod}"
 	sudo runc --systemd-cgroup start "${pod}"
 }
@@ -73,7 +92,7 @@ fi
 
 case $1 in
 	"up")
-		up
+		up "$2"
 		;;
 	"down")
 		down

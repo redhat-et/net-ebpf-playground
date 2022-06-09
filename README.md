@@ -5,21 +5,28 @@ This is a work in progress
 
 # Prerequisites
 
+A Fedora 36 Workstation with:
+
 1. `dnf install elfutils-libelf-devel`
-2. LLVM
-3. `docker` and `runc`
+2. LLVM and Clang
+3. `skopeo`, `umoci` and `runc`
 
 # Topology
 
-Set up a test topology
+Set up a test topology - where eth0 is your internet connected interface
 
 ```sh
-sudo ./topology.sh up
+sudo ./topology.sh up eth0
 ```
 
 Tear down the topology
 ```sh
 sudo ./topology.sh down
+```
+
+Clear the image cache
+```sh
+sudo ./topoligy.sh clean
 ```
 
 # Build Programs
