@@ -59,3 +59,10 @@ TC
 sudo tc qdisc add dev pod1 clsact
 sudo tc filter add dev pod1 ingress prio 1 handle 1 bpf object-file .output/filter.bpf.o direct-action 
 ```
+
+# Run the Socket Redirection Example
+
+```sh
+cd socket-redirection
+cargo xtask run
+```
