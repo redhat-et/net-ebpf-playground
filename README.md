@@ -29,6 +29,16 @@ Clear the image cache
 sudo ./topoligy.sh clean
 ```
 
+Enter a container for testing
+```sh
+sudo runc exec -t pod2 /bin/sh
+```
+
+Add tools to a container
+```sh
+apk add --no-cache iperf
+```
+
 # Build Programs
 
 ```sh

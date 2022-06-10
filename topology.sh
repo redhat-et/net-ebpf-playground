@@ -28,13 +28,13 @@ up() {
 
 down() {
 	set +e
-	sudo runc kill --all pod1 KILL
-	sudo runc kill --all pod2 KILL
-	sudo runc kill --all pod3 KILL
-	sudo runc delete pod1
-	sudo runc delete pod2
-	sudo runc delete pod3
-	sudo rm -rf ./containers
+	runc kill --all pod1 KILL
+	runc kill --all pod2 KILL
+	runc kill --all pod3 KILL
+	runc delete pod1
+	runc delete pod2
+	runc delete pod3
+	rm -rf ./containers
 	ip netns del pod1
 	ip netns del pod2
 	ip netns del pod3
@@ -67,18 +67,20 @@ create_netns() {
 create_pod() {
 	pod="pod$1"
 	if [ ! -f .output/config.json ]; then
-		mkdir -p .output
-		pushd output
-		skopeo copy docker://fedora:36 oci:fedora:36
-		umoci unpack --image fedora:36 .output
-		popd
+		mkdir .output
+		skopeo copy docker://alpine:3.16 oci:alpine:3.16
+		umoci unpack --image alpine:3.16 ./.output
+		rm -rf alpine
+	fi
+	if [ ! -f .output/resolv.conf ]; then
+		echo "nameserver 1.1.1.1" > .output/resolv.conf
 	fi
 	bundle_dir="./containers/${pod}"
 	mkdir -p "${bundle_dir}"
 	cp -rf .output/* "${bundle_dir}"
-	jq --arg pod "$pod" '.linux.namespaces[1].path = "/var/run/netns/\($pod)" | .process.args[0] = "sleep" | .process.args[1] = "infinity" | .process.terminal = false | .root.readonly = false | .hostname = "($pod)" | .mounts += [{"destination":"/etc/resolv.conf","type":"bind","source":"/etc/resolv.conf","options":["ro","rbind","rprivate","nosuid","noexec","nodev"]}]' .output/config.json > "${bundle_dir}/config.json"
-	sudo runc --systemd-cgroup create -b "${bundle_dir}" "${pod}"
-	sudo runc --systemd-cgroup start "${pod}"
+	jq --arg pod "$pod" '.linux.namespaces[1].path = "/var/run/netns/\($pod)" | .process.args[0] = "sleep" | .process.args[1] = "infinity" | .process.terminal = false | .root.readonly = false | .hostname = "\($pod)" | .mounts += [{"destination":"/etc/resolv.conf","type":"bind","source":"resolv.conf","options":["ro","rbind","rprivate","nosuid","noexec","nodev"]}]' .output/config.json > "${bundle_dir}/config.json"
+	runc --systemd-cgroup create -b "${bundle_dir}" "${pod}"
+	runc --systemd-cgroup start "${pod}"
 }
 
 clean() {
