@@ -78,7 +78,18 @@ create_pod() {
 	bundle_dir="./containers/${pod}"
 	mkdir -p "${bundle_dir}"
 	cp -rf .output/* "${bundle_dir}"
-	jq --arg pod "$pod" '.linux.namespaces[1].path = "/var/run/netns/\($pod)" | .process.args[0] = "sleep" | .process.args[1] = "infinity" | .process.terminal = false | .root.readonly = false | .hostname = "\($pod)" | .mounts += [{"destination":"/etc/resolv.conf","type":"bind","source":"resolv.conf","options":["ro","rbind","rprivate","nosuid","noexec","nodev"]}]' .output/config.json > "${bundle_dir}/config.json"
+	jq --arg pod "$pod" \
+		'.linux.namespaces[1].path = "/var/run/netns/\($pod)" |
+		.process.args[0] = "sleep" |
+		.process.args[1] = "infinity" |
+		.process.terminal = false |
+		.process.capabilities.permitted += ["CAP_NET_RAW"] |
+		.process.capabilities.ambient += ["CAP_NET_RAW"] |
+		.process.capabilities.bounding += ["CAP_NET_RAW"] |
+		.root.readonly = false |
+		.hostname = "\($pod)" |
+		.mounts += [{"destination":"/etc/resolv.conf","type":"bind","source":"resolv.conf","options":["ro","rbind","rprivate","nosuid","noexec","nodev"]}]' \
+		.output/config.json > "${bundle_dir}/config.json"
 	runc --systemd-cgroup create -b "${bundle_dir}" "${pod}"
 	runc --systemd-cgroup start "${pod}"
 }
