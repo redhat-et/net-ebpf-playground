@@ -10,11 +10,11 @@ up() {
 	ip link add podrouter type dummy
 	ip link set up podrouter
 	ip addr add 192.168.10.1/32 dev podrouter
-	firewall-cmd --direct --add-rule ipv4 nat POSTROUTING 0 -o "$iface" -j MASQUERADE
 	firewall-cmd --permanent --new-zone=playground
 	firewall-cmd --permanent --zone=playground --set-target ACCEPT
 	firewall-cmd --reload
 	firewall-cmd --zone=playground --change-interface podrouter
+	firewall-cmd --direct --add-rule ipv4 nat POSTROUTING 0 -o "$iface" -j MASQUERADE
 
 	create_netns 1 "$iface" 192.168.10.2
 	create_pod 1
@@ -67,7 +67,7 @@ create_netns() {
 create_pod() {
 	pod="pod$1"
 	if [ ! -f .output/config.json ]; then
-		mkdir .output
+		mkdir -p .output
 		skopeo copy docker://alpine:3.16 oci:alpine:3.16
 		umoci unpack --image alpine:3.16 ./.output
 		rm -rf alpine
