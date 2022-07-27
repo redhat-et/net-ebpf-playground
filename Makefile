@@ -37,6 +37,7 @@ else
 endif
 
 OBJ = $(patsubst bpf/%.c,$(OUTPUT)/%.o,$(wildcard bpf/*.c))
+OBJ += $(patsubst userspace/%.c,$(OUTPUT)/%,$(wildcard userspace/*.c))
 
 .PHONY:
 all: $(OBJ)
@@ -44,7 +45,7 @@ all: $(OBJ)
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT) $(APPS)
+	$(Q)rm -rf $(OUTPUT) $(APPS) 
 
 $(OUTPUT) $(OUTPUT)/libbpf:
 	$(call msg,MKDIR,$@)
@@ -62,7 +63,11 @@ $(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPU
 $(OUTPUT)/%.bpf.o: bpf/%.bpf.c $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BPF,$@)
 	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
-	$(Q)$(LLVM_STRIP) $@ # strip everything since we're not using BTF
+
+# Build Userspace code 
+$(OUTPUT)/%: userspace/%.c
+	$(call msg,BUILD,$@)
+	$(Q)$(CLANG) -I/usr/include -I$(LIBBPF_SRC) -g -O2 -Wall -Wextra $(filter %.c,$^) -o $@
 
 # delete failed targets
 .DELETE_ON_ERROR:
