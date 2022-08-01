@@ -47,7 +47,13 @@ int main(int argc, char **argv)
 		error(EXIT_FAILURE, errno, "bpf(OBJ_GET)");
 
 	/* 2. Get an FD for this process network namespace (netns) */
-	sprintf(netns_path, "/var/run/netns/%s", netns); 
+	if(strcmp(netns,"self") != 0) {
+		sprintf(netns_path, "/var/run/netns/%s", netns);
+	} else {
+		sprintf(netns_path, "/proc/self/ns/net");
+	}
+
+	printf("Attaching to network namespace: %s\n", netns_path);
 	
 	netns_fd = open(netns_path, O_RDONLY | O_CLOEXEC);
 	if (netns_fd == -1)
