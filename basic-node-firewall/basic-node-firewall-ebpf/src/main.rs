@@ -9,8 +9,8 @@ use aya_bpf::{
     maps::{HashMap, PerfEventArray},
 
 };
-use aya_log_ebpf::info;
-use basic_node_firewall_common::{PacketLog, PacketFiveTuple};
+
+use basic_node_firewall_common::{packet_five_tuple, packet_log};
 
 use core::mem;
 use memoffset::offset_of;
@@ -28,14 +28,13 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe { core::hint::unreachable_unchecked() }
 }
 
+#[map(name = "events")]
+static mut events: PerfEventArray<packet_log> =
+    PerfEventArray::<packet_log>::pinned(1024, 0);
 
-#[map(name = "EVENTS")]
-static mut EVENTS: PerfEventArray<PacketLog> =
-    PerfEventArray::<PacketLog>::with_max_entries(1024, 0);
-
-#[map(name = "BLOCKLIST")]
-static mut BLOCKLIST: HashMap<PacketFiveTuple, u32> =
-    HashMap::<PacketFiveTuple, u32>::with_max_entries(1024, 0);
+#[map(name = "blocklist")]
+static mut blocklist: HashMap<packet_five_tuple, u32> =
+    HashMap::<packet_five_tuple, u32>::pinned(1024, 0);
 
 #[xdp(name="basic_node_firewall")]
 pub fn basic_node_firewall(ctx: XdpContext) -> u32 {
@@ -59,8 +58,8 @@ unsafe fn ptr_at<T>(ctx: &XdpContext, offset: usize) -> Result<*const T, ()> {
 }
 
 // (2)
-fn block_ip(key: &mut PacketFiveTuple) -> bool {
-    unsafe { BLOCKLIST.get(key).is_some() }
+fn block_ip(key: &mut packet_five_tuple) -> bool {
+    unsafe { blocklist.get(key).is_some() }
 }
 
 unsafe fn try_basic_node_firewall(ctx: XdpContext) -> Result<u32, ()> {
@@ -76,6 +75,7 @@ unsafe fn try_basic_node_firewall(ctx: XdpContext) -> Result<u32, ()> {
         *ptr_at(&ctx, ETH_HDR_LEN + offset_of!(iphdr, protocol))?
     };
 
+    // TODO handle UDP as well
     if l4_proto != IPPROTO_TCP{ 
         return Ok(xdp_action::XDP_PASS);
     }
@@ -96,10 +96,11 @@ unsafe fn try_basic_node_firewall(ctx: XdpContext) -> Result<u32, ()> {
         *ptr_at(&ctx, ETH_HDR_LEN + IP_HDR_LEN + offset_of!(tcphdr, dest))?
     });
 
-    let mut firewall_key = PacketFiveTuple { 
-        src_address: source_ip, 
+    // Don't filter on src_address or src_port for now
+    let mut firewall_key = packet_five_tuple { 
+        src_address: 0, 
         dst_address: dest_ip,
-        src_port: source_port,
+        src_port: 0,
         dst_port: dest_port, 
         protocol: l4_proto,
         _pad: [0, 0, 0],
@@ -112,17 +113,19 @@ unsafe fn try_basic_node_firewall(ctx: XdpContext) -> Result<u32, ()> {
     };
     
     if action == xdp_action::XDP_DROP {
-        let log_entry = PacketLog {
-            ipv4_address: source_ip,
-            action: action,
+        let log_entry = packet_log {
+            src_address: source_ip, 
+            dst_address: dest_ip,
+            src_port: source_port,
+            dst_port: dest_port, 
+            protocol: l4_proto,
+            _pad: [0, 0, 0],
         };
-        
+
         unsafe {
-            EVENTS.output(&ctx, &log_entry, 0);
+            events.output(&ctx, &log_entry, 0);
         }
     }
     
     Ok(action)
 }
-
-

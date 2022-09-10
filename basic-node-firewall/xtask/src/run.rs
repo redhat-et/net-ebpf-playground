@@ -13,6 +13,8 @@ pub struct Options {
     /// Build and run the release target
     #[clap(long)]
     pub release: bool,
+    #[clap(long)]
+    pub loader: bool,
     /// The command used to wrap your application
     #[clap(short, long, default_value = "sudo -E")]
     pub runner: String,
@@ -47,13 +49,17 @@ pub fn run(opts: Options) -> Result<(), anyhow::Error> {
 
     // profile we are building (release or debug)
     let profile = if opts.release { "release" } else { "debug" };
-    let bin_path = format!("target/{}/basic-node-firewall", profile);
+    let bin_path = if opts.loader{
+        format!("target/{}/basic-node-firewall-loader", profile)
+    } else {
+        format!("target/{}/basic-node-firewall", profile)
+    };
 
     // arguments to pass to the application
     let mut run_args: Vec<_> = opts.run_args.iter().map(String::as_str).collect();
-
     // configure args
     let mut args: Vec<_> = opts.runner.trim().split_terminator(' ').collect();
+    args.push("RUST_LOG=debug,info");
     args.push(bin_path.as_str());
     args.append(&mut run_args);
 

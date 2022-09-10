@@ -10,13 +10,13 @@ basic-node-firewall-common = { path = "../basic-node-firewall-common" }
 memoffset = "0.6"
 
 [[bin]]
-name = "basic-node-firewall"
+name = "basic-node-firewall-loader"
 path = "src/main.rs"
 
 [profile.dev]
 opt-level = 3
-debug = false
-debug-assertions = false
+debug = true
+debug-assertions = true
 overflow-checks = false
 lto = true
 panic = "abort"

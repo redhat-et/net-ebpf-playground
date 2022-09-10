@@ -1,2 +1,5 @@
 [workspace]
-members = ["basic-node-firewall", "basic-node-firewall-common", "xtask"]
+members = ["basic-node-firewall-loader", "basic-node-firewall", "basic-node-firewall-common", "xtask"]
+
+[patch.crates-io]
+aya = { git = "https://github.com/astoycos/aya", branch="try-from-async-perf" }
