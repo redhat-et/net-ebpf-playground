@@ -34,7 +34,7 @@ spec:
         imagePullPolicy: Always
         env: 
           - name: RUST_LOG
-            value: "info"
+            value: "debug,info"
         volumeMounts:
         - name: bpfd-fs
           mountPath: /var/run/bpfd

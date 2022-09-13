@@ -18,6 +18,9 @@ use pnet::datalink;
 
 use basic_node_firewall_common::{packet_five_tuple, packet_log};
 
+use gethostname::gethostname;
+
+
 #[derive(Debug, Parser)]
 struct Opt {
     #[clap(short, long, default_value = "eth0")]
@@ -53,7 +56,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let bpf_prog_api: Api<EbpfProgram> = Api::default_namespaced(client.clone());
     let mut prog_id: &'static str = "";
     let mut prog_interface = "".to_owned();
-    let mut blocklist:Vec<packet_five_tuple> = Vec::new(); 
+    let mut blocklist:Vec<packet_five_tuple> = Vec::new();
+
+    let hostname = gethostname().into_string().unwrap();
+    info!("Node Hostname: {}", hostname);
+    let uuid_annotation_tag = format!("{}/uuid", hostname);
+    let attach_point_annotation_tag = format!("{}/attach_point", hostname);
     
     // Ugly preprocessing of all data we need
     info!("Starting basic-node-firewall manager");
@@ -71,10 +79,10 @@ async fn main() -> Result<(), anyhow::Error> {
                     continue;
                 }
             };
-
+            
             // Make this static so we can use it later in a spawned thread used to watch events
-            prog_id = Box::leak(annotations.get("bpfd.ebpfprogram.io/uuid").unwrap().to_string().into_boxed_str());
-            prog_interface = annotations.get("bpfd.ebpfprogram.io/attach_point").unwrap().to_string();
+            prog_id = Box::leak(annotations.get(&uuid_annotation_tag).unwrap().to_string().into_boxed_str());
+            prog_interface = annotations.get(&attach_point_annotation_tag).unwrap().to_string();
             info!("Program interface: {} id: {}", prog_interface, prog_id);
 
         } else {
