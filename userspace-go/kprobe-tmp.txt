@@ -1,0 +1,45 @@
+kretprobe:xdp_do_redirect
+{
+    printf("returned: %d\n", retval);
+}
+kprobe:veth_xdp_rcv_one
+{
+    printf("xdp receive one xdp_frame arg: %d\n", arg1);
+}
+kretprobe:veth_xdp_rcv_one
+{
+    printf("xdp receive one returned: %d\n", retval);
+}
+kprobe:veth_xdp_rcv_skb
+{
+    printf("xdp receive skb returned: %s\n", str(arg1));
+}
+kretprobe:veth_poll
+{ 
+    printf("xdp receive returned: %d\n", retval);
+}
+kretprobe:ip_rcv_core
+{ 
+    if (retval < 15) {
+        printf("ip receive returned: %d\n", retval);
+    }
+}
+kprobe:kfree_skb_reason
+{
+    printf("SKB free reason: %d\n", arg1);
+}
+kretprobe:__udp4_lib_rcv
+{ 
+    printf("udb lib receive returned: %d\n", retval);
+    
+}
+kretprobe:udp_unicast_rcv_skb
+{ 
+    printf("udb udp_unicast_rcv_skb receive returned: %d\n", retval);
+    
+}
+kretprobe:__skb_checksum_complete
+{ 
+    printf("skb_checksum_complete receive returned: %x\n", retval);
+    
+}
