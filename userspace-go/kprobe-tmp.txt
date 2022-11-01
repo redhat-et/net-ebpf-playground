@@ -40,6 +40,5 @@ kretprobe:udp_unicast_rcv_skb
 }
 kretprobe:__skb_checksum_complete
 { 
-    printf("skb_checksum_complete receive returned: %x\n", retval);
-    
+    printf("skb_checksum_complete returned: %x\n", retval);   
 }

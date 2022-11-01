@@ -96,10 +96,14 @@ static __always_inline __u16 udp_checksum(struct iphdr *ip, struct udphdr * udp,
 struct backend {
     __u32 saddr;
     __u32 daddr;
+    __u16 dport;
     __u8 shwaddr[6];
     __u8 dhwaddr[6];
     __u16 ifindex;
-    __u8 pad[2];
+    // Cksum isn't required for UDP see:
+    // https://en.wikipedia.org/wiki/User_Datagram_Protocol
+    __u8 nocksum;
+    __u8 pad[3];
 };
 
 
@@ -181,6 +185,11 @@ int xdp_prog_func(struct xdp_md *ctx) {
   bpf_printk_ip(ip->saddr);
   bpf_printk("updated daddr to:");
   bpf_printk_ip(ip->daddr);
+  
+  if (udp->dest != bpf_ntohs(bk->dport)) {
+    udp->dest = bpf_ntohs(bk->dport);
+    bpf_printk("updated dport to: %d", bk->dport);
+  }
 
   memcpy(eth->h_source, bk->shwaddr, sizeof(eth->h_source));
   bpf_printk("new source hwaddr %x:%x:%x:%x:%x:%x", eth->h_source[0], eth->h_source[1], eth->h_source[2], eth->h_source[3], eth->h_source[4], eth->h_source[5]);
@@ -189,7 +198,11 @@ int xdp_prog_func(struct xdp_md *ctx) {
   bpf_printk("new dest hwaddr %x:%x:%x:%x:%x:%x", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2], eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
 
   ip->check = iph_csum(ip);
-  udp->check = udp_checksum(ip, udp, data_end);
+  udp->check = 0;
+
+  if (!bk->nocksum){
+    udp->check = udp_checksum(ip, udp, data_end);
+  }
 
   bpf_printk("destination interface index %d", bk->ifindex);
   

@@ -16,10 +16,12 @@ import (
 type bpfBackend struct {
 	Saddr   uint32
 	Daddr   uint32
+	Dport   uint16
 	Shwaddr [6]uint8
 	Dhwaddr [6]uint8
 	Ifindex uint16
-	Pad     [2]uint8
+	Nocksum uint8
+	Pad     [3]uint8
 }
 
 type bpfVipKey struct {

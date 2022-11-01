@@ -63,17 +63,19 @@ func main() {
 	b := bpfBackend{
 		Saddr: ip2int("10.8.125.12"),
 		Daddr: ip2int("192.168.10.2"),
+		Dport: 9875,
 		// Host-Side Veth Mac
 		Shwaddr: hwaddr2bytes("06:56:87:ec:fd:1f"),
 		// Container-Side Veth Mac
 		Dhwaddr: hwaddr2bytes("86:ad:33:29:ff:5e"),
+		Nocksum: 1,
 		Ifindex: 8,
 	}
 
 	key := bpfVipKey{
 		Vip: ip2int("10.8.125.12"),
 		//Vip:  ip2int("192.168.10.1"),
-		Port: 9875,
+		Port: 8888,
 	}
 
 	if err := objs.Backends.Update(key, b, ebpf.UpdateAny); err != nil {
