@@ -18,9 +18,7 @@ char __license[] SEC("license") = "GPL";
 #define MAX_BACKENDS 128
 #define MAX_UDP_LENGTH 1480
 
-#define IP_ADDRESS(x) (unsigned int)(172 + (18 << 8) + (0 << 16) + (x << 24))
-#define IP_ADDRESS2(x) (unsigned int)(10 + (244 << 8) + (0 << 16) + (x << 24))
-#define UDP_PAYLOAD_SIZE(x) (unsigned int)(((x - sizeof(struct udphdr)) * 8 ) / 4)
+#define UDP_PAYLOAD_SIZE(x) (unsigned int)(((bpf_htons(x) - sizeof(struct udphdr)) * 8 ) / 4)
 
 static __always_inline void ip_from_int(__u32 *buf, __be32 ip) {
     buf[0] = (ip >> 0 ) & 0xFF;
@@ -67,19 +65,16 @@ static __always_inline __u16 udp_checksum(struct iphdr *ip, struct udphdr * udp,
     csum_total += (__u16)(ip->protocol << 8);
     csum_total += udp->len;
 
-    bpf_printk("len %X", udp->len);
-    bpf_printk("size %X", sizeof(struct udphdr));
     // The number of nibbles in the UDP header + Payload
     unsigned int udp_packet_nibbles = UDP_PAYLOAD_SIZE(udp->len);
-    bpf_printk("Number of Packet Nibbles %X", udp_packet_nibbles);
-
-    if (udp_packet_nibbles > MAX_UDP_LENGTH) { 
-        return 0;
-    }
 
     // Here we only want to iterate through payload 
     // NOT trailing bits
-    for (int i = 0; i <= 10; i += 2) {
+    for (int i = 0; i <= MAX_UDP_LENGTH; i += 2) {
+        if (i > udp_packet_nibbles) {
+            break;
+        }
+
         if ((void *)(buf + 1) > data_end) {
             break;
         }
