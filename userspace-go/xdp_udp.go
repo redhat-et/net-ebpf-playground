@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -32,10 +33,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("lookup network iface %s: %s", ifaceName, err)
 	}
-
+	
+	var ve *ebpf.VerifierError
 	objs := bpfObjects{}
 	if err := loadBpfObjects(&objs, nil); err != nil {
-		log.Fatalf("loading objects: %s", err)
+		if errors.As(err, &ve) {
+			// Using %+v will print the whole verifier error, not just the last
+			// few lines.
+			fmt.Printf("Verifier error: %+v\n", ve)
+		}
 	}
 	defer objs.Close()
 
@@ -61,20 +67,25 @@ func main() {
 	log.Printf("Press Ctrl-C to exit and remove the program")
 
 	b := bpfBackend{
+		// Hardcoded Src IP (main Nic)
 		Saddr: ip2int("10.8.125.12"),
+		// Hardcoded Dst IP (container)
 		Daddr: ip2int("192.168.10.2"),
+		// Hardcoded Dst Port (UDP echo server)
 		Dport: 9875,
 		// Host-Side Veth Mac
 		Shwaddr: hwaddr2bytes("06:56:87:ec:fd:1f"),
 		// Container-Side Veth Mac
 		Dhwaddr: hwaddr2bytes("86:ad:33:29:ff:5e"),
-		Nocksum: 1,
+		Nocksum: 0,
+		// Hardcoded Host side Veth index
 		Ifindex: 8,
 	}
 
 	key := bpfVipKey{
+		// Hardcoded main NIC IP
 		Vip: ip2int("10.8.125.12"),
-		//Vip:  ip2int("192.168.10.1"),
+		// Hardcoded main NIC port
 		Port: 8888,
 	}
 
